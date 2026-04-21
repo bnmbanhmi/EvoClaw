@@ -58,13 +58,25 @@ class GeminiFramework(AgentFramework):
     def get_container_mounts(self) -> List[str]:
         """Return Docker volume mount arguments for Gemini.
 
-        For API mode, no credential files need to be mounted.
-        The API key is passed via environment variable.
+        Mounts an isolated Gemini CLI authentication directory to allow the
+        agent to use an existing session without an API key.
+
+        The directory is specified by the GEMINI_CLI_HOME environment variable.
+        If set, it mounts `$GEMINI_CLI_HOME/.gemini` to `/home/fakeroot/.gemini`.
+        Otherwise, no credentials are mounted to ensure host security.
 
         Returns:
-            List of -v arguments for docker run (empty for API mode)
+            List of -v arguments for docker run
         """
-        # API mode doesn't need file mounts - key is passed via env var
+        cli_home = os.environ.get("GEMINI_CLI_HOME")
+        if cli_home:
+            gemini_config_dir = os.path.join(cli_home, ".gemini")
+            # Only mount if the directory actually exists
+            if os.path.isdir(gemini_config_dir):
+                return ["-v", f"{gemini_config_dir}:/home/fakeroot/.gemini:rw"]
+            else:
+                logger.warning(f"GEMINI_CLI_HOME is set but {gemini_config_dir} does not exist.")
+        
         return []
 
     def get_container_env_vars(self) -> List[str]:
