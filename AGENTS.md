@@ -10,13 +10,13 @@
     - Gemini CLI Auth Setup: `docs/gemini-cli-auth.md`
 
 ## Current Status
-- **Active Trial**: `gemini_coretext_run_001` (Failed - Pending Fixes)
+- **Active Trial**: `gemini_coretext_run_001` (Running)
 - **Target Repository**: `ripgrep` (BurntSushi_ripgrep_14.1.1_15.0.0)
 - **Agent**: `gemini-coretext`
 - **Model**: `gemini-3.1-pro-preview`
 - **Prompt**: `coretext`
 - **Authentication**: Isolated CLI login via `GEMINI_CLI_HOME="/tmp/evoclaw-gemini-auth"`.
-- **Progress (2026-04-22)**: 0/13 completed. The trial failed to start because the `gemini` command was not found inside the container. Subsequent recovery attempts crashed because `harness/e2e/prompt/coretext_recover.md` is missing.
+- **Progress (2026-04-22)**: 0/11 completed. Initial failures with `gemini: not found` have been resolved. The experiment has been resumed.
 
 ## Changes & Fixes
 ### 1. Gemini Initialization Optimization
@@ -38,12 +38,18 @@
     - Updated `run_e2e.py` and `config.py` to support the new agent/prompt strategy.
     - Updated `scripts/run_all.py` to extract `prompt_version` from `trial_config.yaml` and pass it as `--prompt-version` to the runner.
 
+### 4. Gemini Coretext Initialization Fix
+- **File**: `harness/e2e/agents/gemini_coretext.py`
+- **Problem**: `gemini` command was not found because the initialization script crashed early. `pip install` threw a `FileNotFoundError` when `pip` was missing, which was caught by a global `try...except`, halting the rest of the script including the Node.js and Gemini CLI installation. Missing recovery prompts also caused crashes.
+- **Fix**: Reordered script to define `run_cmd` earlier and wrapped `pip` commands in an isolated `try...except` block. User manually created `coretext_recover.md` and `coretext_recover.md.tmpl`.
+
 ## Operations Log
 - **2026-04-21 21:07**: Resumed trial `_002`. Detected previous evaluation errors and triggered re-evaluation of submissions using the new CPU limit.
 - **2026-04-22 09:42**: Detected potential wedge on `ripgrep` (>10h running sessions).
 - **2026-04-22 09:48**: Performed global cleanup of all past trial runs (`_001` and `_002`). Removed all `e2e_trial` directories, locks, and logs across all repositories.
 - **2026-04-22 10:55**: Integrated **Coretext Engine**. Created dedicated `gemini-coretext` harness and `coretext` prompt version for opt-in context injection benchmarks.
 - **2026-04-22 19:00**: Launched `gemini_coretext_run_001` trial via `scripts/run_all.py`. Trial immediately failed (`gemini: not found` in container). Recovery logic also failed due to missing `coretext_recover.md`.
+- **2026-04-22 19:30**: Applied initialization script fixes and recovery prompts. Resumed `gemini_coretext_run_001` trial.
 
 ## Useful Commands
 - **Monitor**: `uv run scripts/monitor.sh gemini_coretext_run_001` (--detail or --full)

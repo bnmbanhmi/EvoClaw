@@ -124,6 +124,20 @@ try:
     import os
     import shutil
 
+    def run_cmd(cmd, shell=False):
+        '''Run command and return (success, stdout, stderr)'''
+        try:
+            result = subprocess.run(
+                cmd,
+                shell=shell,
+                capture_output=True,
+                text=True,
+                timeout=300
+            )
+            return result.returncode == 0, result.stdout.strip(), result.stderr.strip()
+        except Exception as e:
+            return False, '', str(e)
+
     # === Coretext custom configs ===
     if os.path.exists("/tmp/coretext_src"):
         print("Installing custom coretext configs and dependencies...")
@@ -148,26 +162,15 @@ try:
             pass
 
         # Install dependencies if pyproject.toml or requirements.txt exists
-        if os.path.exists("/tmp/coretext_src/pyproject.toml"):
-            print("Installing coretext package dependencies (pyproject.toml)...")
-            subprocess.run(['pip', 'install', '/tmp/coretext_src'], capture_output=True)
-        elif os.path.exists("/tmp/coretext_src/requirements.txt"):
-            print("Installing coretext package dependencies (requirements.txt)...")
-            subprocess.run(['pip', 'install', '-r', '/tmp/coretext_src/requirements.txt'], capture_output=True)
-
-    def run_cmd(cmd, shell=False):
-        '''Run command and return (success, stdout, stderr)'''
         try:
-            result = subprocess.run(
-                cmd,
-                shell=shell,
-                capture_output=True,
-                text=True,
-                timeout=300
-            )
-            return result.returncode == 0, result.stdout.strip(), result.stderr.strip()
+            if os.path.exists("/tmp/coretext_src/pyproject.toml"):
+                print("Installing coretext package dependencies (pyproject.toml)...")
+                subprocess.run(['pip', 'install', '/tmp/coretext_src'], capture_output=True)
+            elif os.path.exists("/tmp/coretext_src/requirements.txt"):
+                print("Installing coretext package dependencies (requirements.txt)...")
+                subprocess.run(['pip', 'install', '-r', '/tmp/coretext_src/requirements.txt'], capture_output=True)
         except Exception as e:
-            return False, '', str(e)
+            print(f"Warning: Failed to install coretext dependencies: {e}")
 
     # Check current Node.js version
     success, node_version, _ = run_cmd(['node', '--version'])
