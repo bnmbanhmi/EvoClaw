@@ -152,10 +152,46 @@ try:
                 shutil.rmtree("/workspace/.coretext")
             shutil.copytree("/tmp/coretext_src/.coretext", "/workspace/.coretext")
             
-        # Copy settings.json to /home/fakeroot/.gemini/settings.json
-        # This will merge with the mounted credentials
-        if os.path.exists("/tmp/coretext_src/.gemini/settings.json"):
-            shutil.copy2("/tmp/coretext_src/.gemini/settings.json", "/home/fakeroot/.gemini/settings.json")
+        # Merge settings.json with the mounted credentials
+        coretext_settings_path = "/tmp/coretext_src/.gemini/settings.json"
+        dest_settings_path = "/home/fakeroot/.gemini/settings.json"
+        if os.path.exists(coretext_settings_path):
+            import json
+            try:
+                base_settings = {}
+                if os.path.exists(dest_settings_path):
+                    try:
+                        with open(dest_settings_path, 'r') as f:
+                            base_settings = json.load(f)
+                    except Exception:
+                        pass
+                
+                with open(coretext_settings_path, 'r') as f:
+                    core_settings = json.load(f)
+                    
+                # Deep merge hooks specifically
+                if "hooks" in core_settings:
+                    if "hooks" not in base_settings:
+                        base_settings["hooks"] = {}
+                    for hook_type, hook_list in core_settings["hooks"].items():
+                        if hook_type not in base_settings["hooks"]:
+                            base_settings["hooks"][hook_type] = []
+                        base_settings["hooks"][hook_type].extend(hook_list)
+                
+                # Merge other dicts
+                for k, v in core_settings.items():
+                    if k == "hooks": continue
+                    if isinstance(v, dict) and k in base_settings and isinstance(base_settings[k], dict):
+                        base_settings[k].update(v)
+                    else:
+                        base_settings[k] = v
+                        
+                with open(dest_settings_path, 'w') as f:
+                    json.dump(base_settings, f, indent=2)
+            except Exception as merge_err:
+                print(f"Warning: Failed to merge settings.json: {merge_err}")
+                import shutil
+                shutil.copy2(coretext_settings_path, dest_settings_path)
             
         # Fix ownership for BOTH the home config and the workspace files
         try:

@@ -131,6 +131,13 @@ try:
         except Exception as e:
             return False, '', str(e)
 
+    # Fix ownership for the mounted home config directory
+    if os.path.exists("/home/fakeroot/.gemini"):
+        try:
+            subprocess.run(['chown', '-R', 'fakeroot:fakeroot', '/home/fakeroot/.gemini'], capture_output=True)
+        except Exception:
+            pass
+
     # Check current Node.js version
     success, node_version, _ = run_cmd(['node', '--version'])
     if success:

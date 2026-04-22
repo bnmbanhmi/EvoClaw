@@ -57,6 +57,11 @@
     - Added `gemini-coretext` to `_OAUTH_AGENTS` in `AgentRunner`.
     - Explicitly registered `gemini_coretext` in `AgentFramework` factory.
 
+### 7. Gemini Coretext Settings Merge Fix
+- **Files**: `harness/e2e/agents/gemini_coretext.py`, `harness/e2e/agents/gemini.py`
+- **Problem**: `shutil.copy2()` in the `gemini_coretext.py` init script overwrote the existing `settings.json` and caused bind-mount metadata permission errors during container initialization.
+- **Fix**: Replaced `shutil.copy2()` with a robust Python JSON deep-merge that safely injects Coretext hooks without destroying user settings. Additionally, applied the missing `chown -R fakeroot:fakeroot /home/fakeroot/.gemini` to `gemini.py`.
+
 ## Operations Log
 - **2026-04-21 21:07**: Resumed trial `_002`. Detected previous evaluation errors and triggered re-evaluation of submissions using the new CPU limit.
 - **2026-04-22 09:42**: Detected potential wedge on `ripgrep` (>10h running sessions).
@@ -66,6 +71,7 @@
 - **2026-04-22 19:30**: Applied initialization script fixes and recovery prompts. Resumed `gemini_coretext_run_001` trial.
 - **2026-04-22 19:46**: Trial failed again because it resumed the old broken container. Evaluator crashed because log parser didn't recognize `gemini-coretext`. Fixed the parser, deleted the broken container, and restarted the trial.
 - **2026-04-22 21:30**: Trial failed with `FatalAuthenticationError` due to permission issues and incorrect `settings.json` location. Applied fix (chown + relocation) and prepared for a fresh restart.
+- **2026-04-22 22:30**: Diagnosed `settings.json` bind-mount permissions overwrite issue in `gemini_coretext.py`. Implemented JSON merge fix and applied missing chown fix to `gemini.py`. Cleaned up old trial runs and started a new clean trial.
 
 ## Useful Commands
 - **Monitor**: `uv run scripts/monitor.sh gemini_coretext_run_001` (--detail or --full)
