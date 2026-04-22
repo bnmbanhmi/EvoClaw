@@ -62,6 +62,12 @@
 - **Problem**: The `gemini_coretext.py` init script was incorrectly merging project-level Coretext settings into the container's global `~/.gemini/settings.json`. Additionally, the previous `shutil.copy2()` had already permanently destroyed the user's host `settings.json` by overwriting it with the Coretext hooks, stripping the required auth configuration.
 - **Fix**: Changed the initialization script to copy `.coretext` and `.gemini/settings.json` to the workspace level (`/testbed/`) instead of the global level (`/home/fakeroot/`). Repaired the user's damaged `/tmp/evoclaw-gemini-auth/.gemini/settings.json` by restoring the correct nested structure (`{"security": {"auth": {"selectedType": "oauth-personal"}}}`).
 
+### 8. Gemini CLI Authentication Baseline & Binary Architecture Fix
+- **Files**: `harness/e2e/agents/gemini.py`, `/tmp/evoclaw-gemini-auth/.gemini/tmp/bin`
+- **Problem**: Authentication appeared to "freeze" in `gemini-coretext`. Verified authentication works in standard `gemini-cli` harness by explicitly setting `HOME=/home/fakeroot`. Discovered that `rg` and other binaries in `~/.gemini/tmp/bin` were macOS `arm64` executables (mounted from host), causing `Syntax error: word unexpected` inside the Linux container.
+- **Fix**: 
+    - Verified `gemini-cli` authentication works as a baseline.
+    - Cleared host-side `tmp/bin` to allow container-native downloads.
 ## Operations Log
 - **2026-04-21 21:07**: Resumed trial `_002`. Detected previous evaluation errors and triggered re-evaluation of submissions using the new CPU limit.
 - **2026-04-22 09:42**: Detected potential wedge on `ripgrep` (>10h running sessions).
@@ -74,6 +80,8 @@
 - **2026-04-22 22:30**: Diagnosed `settings.json` bind-mount permissions overwrite issue in `gemini_coretext.py`. Implemented JSON merge fix and applied missing chown fix to `gemini.py`. Cleaned up old trial runs and started a new clean trial.
 - **2026-04-22 23:00**: Agent still failed to authenticate because the previous `shutil.copy2` had permanently destroyed the host's `settings.json`. Repaired the host's `settings.json` manually with `{"auth": "oauth"}`. Modified `gemini_coretext.py` to copy the Coretext `.gemini/settings.json` to the workspace level (`/testbed/.gemini/settings.json`) instead of merging it into the system level, correctly isolating project hooks. Restarted trial.
 - **2026-04-22 23:30**: Identified incorrect `settings.json` auth format. Restored correct format (`"security": {"auth": {"selectedType": "oauth-personal"}}`), cleaned up artifacts, and restarted a clean trial.
+- **2026-04-22 23:45**: Transitioned to `gemini-cli` to verify authentication baseline. Authentication confirmed working. Identified Mach-O/Linux architecture mismatch in `~/.gemini/tmp/bin`.
+- **2026-04-22 23:55**: Cleared incompatible binaries from `/tmp/evoclaw-gemini-auth/.gemini/tmp/bin`. Resumed `gemini-coretext` trial.
 
 ## Useful Commands
 - **Monitor**: `uv run scripts/monitor.sh gemini_coretext_run_001` (--detail or --full)
