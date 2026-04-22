@@ -1,0 +1,6 @@
+data_root: /Users/mac/Git/.worktrees/EvoClaw--auth-recovery/EvoClaw-data
+trial_name: gemini_coretext
+agent: gemini-cli
+model: gemini-3-flash-preview
+timeout: 18000
+repos: [ripgrep]

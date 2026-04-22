@@ -54,12 +54,14 @@ class GeminiFramework(AgentFramework):
         self._base_url = base_url or os.environ.get("UNIFIED_BASE_URL")
         self._include_directories = include_directories or []
         
-        # Ensure /testbed/.gemini is included if coretext_package might be injected.
+        # Check if Coretext injection is requested via env var or kwarg
+        self._coretext_enabled = kwargs.get("coretext", os.environ.get("EVOCLAW_CORETEXT") == "true")
+        
+        # Ensure /testbed/.gemini is included if coretext is enabled.
         # Gemini CLI project-level settings are picked up from .gemini/settings.json.
-        # Since we copy the injected package to /testbed, we should ensure the agent
-        # knows about project-level configs if they exist.
-        if "/testbed/.gemini" not in self._include_directories:
-             self._include_directories.append("/testbed/.gemini")
+        if self._coretext_enabled:
+            if "/testbed/.gemini" not in self._include_directories:
+                 self._include_directories.append("/testbed/.gemini")
 
         # Ignore unsupported kwargs like reasoning_effort
 
@@ -73,7 +75,7 @@ class GeminiFramework(AgentFramework):
         If set, it mounts `$GEMINI_CLI_HOME/.gemini` to `/home/fakeroot/.gemini`.
         Otherwise, no credentials are mounted to ensure host security.
 
-        Also mounts coretext_package from sibling worktree if available.
+        Also mounts coretext_package if enabled.
 
         Returns:
             List of -v arguments for docker run
@@ -88,11 +90,17 @@ class GeminiFramework(AgentFramework):
             else:
                 logger.warning(f"GEMINI_CLI_HOME is set but {gemini_config_dir} does not exist.")
         
-        # Mount coretext_package if available
-        coretext_path = os.path.abspath(os.path.join(os.getcwd(), "..", "coretext--trasition-to-sdd", "coretext_package"))
-        if os.path.isdir(coretext_path):
-            logger.info(f"Mounting coretext_package from {coretext_path}")
-            mounts.extend(["-v", f"{coretext_path}:/tmp/coretext_package:ro"])
+        # Mount coretext_package if enabled
+        if self._coretext_enabled:
+            # Default to sibling worktree
+            default_path = os.path.abspath(os.path.join(os.getcwd(), "..", "coretext--trasition-to-sdd", "coretext_package"))
+            coretext_path = os.environ.get("EVOCLAW_CORETEXT_PATH", default_path)
+            
+            if os.path.isdir(coretext_path):
+                logger.info(f"Mounting coretext_package from {coretext_path}")
+                mounts.extend(["-v", f"{coretext_path}:/tmp/coretext_package:ro"])
+            else:
+                logger.warning(f"Coretext enabled but {coretext_path} not found.")
         
         return mounts
 
@@ -120,7 +128,7 @@ class GeminiFramework(AgentFramework):
         1. Installs Node.js 20+ (required for Gemini CLI 0.25.1+)
         2. Installs Gemini CLI via npm
         3. Verifies installation
-        4. Copies coretext_package into /testbed if mounted
+        4. Copies coretext_package into /testbed if enabled
 
         Args:
             agent_name: Git user name for agent commits
@@ -128,7 +136,36 @@ class GeminiFramework(AgentFramework):
         Returns:
             Python script as a string
         """
-        return """
+        inject_coretext_logic = ""
+        if self._coretext_enabled:
+            inject_coretext_logic = """
+    # === Coretext: Copy injected package into /testbed ===
+    if os.path.isdir('/tmp/coretext_package'):
+        print("Injecting Coretext package into /testbed...")
+        for item in os.listdir('/tmp/coretext_package'):
+            s = os.path.join('/tmp/coretext_package', item)
+            d = os.path.join('/testbed', item)
+            if os.path.isdir(s):
+                if os.path.exists(d):
+                    # Merge directories
+                    print(f"  Merging directory: {item}")
+                    for subitem in os.listdir(s):
+                        ss = os.path.join(s, subitem)
+                        dd = os.path.join(d, subitem)
+                        if os.path.isdir(ss):
+                            shutil.copytree(ss, dd, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(ss, dd)
+                else:
+                    print(f"  Copying directory: {item}")
+                    shutil.copytree(s, d)
+            else:
+                print(f"  Copying file: {item}")
+                shutil.copy2(s, d)
+        print("Coretext package injected successfully")
+"""
+
+        return f"""
 # === Gemini: Install Node.js 20+ and Gemini CLI ===
 try:
     import subprocess
@@ -152,7 +189,7 @@ try:
     # Check current Node.js version
     success, node_version, _ = run_cmd(['node', '--version'])
     if success:
-        print(f"Current Node.js version: {node_version}")
+        print(f"Current Node.js version: {{node_version}}")
         try:
             major = int(node_version.lstrip('v').split('.')[0])
             need_upgrade = major < 20
@@ -178,14 +215,14 @@ try:
             shell=True
         )
         if not success:
-            print(f"Warning: NodeSource setup output: {stderr}")
+            print(f"Warning: NodeSource setup output: {{stderr}}")
 
         success, stdout, stderr = run_cmd(['apt-get', 'install', '-y', 'nodejs'])
         if success:
             success, node_version, _ = run_cmd(['node', '--version'])
-            print(f"Node.js installed: {node_version}")
+            print(f"Node.js installed: {{node_version}}")
         else:
-            print(f"Failed to install Node.js: {stderr}")
+            print(f"Failed to install Node.js: {{stderr}}")
             raise Exception("Node.js installation failed")
 
     # Check if gemini is already installed and working
@@ -193,7 +230,7 @@ try:
     if gemini_path:
         success, version, _ = run_cmd(['gemini', '--version'])
         if success:
-            print(f"Gemini CLI already installed: {version}")
+            print(f"Gemini CLI already installed: {{version}}")
         else:
             # Gemini exists but doesn't work (probably wrong Node version)
             print("Reinstalling Gemini CLI...")
@@ -207,40 +244,17 @@ try:
         if success:
             print("Gemini CLI installed successfully")
         else:
-            print(f"npm install output: {stderr}")
+            print(f"npm install output: {{stderr}}")
 
     # Verify final installation
     success, version, stderr = run_cmd(['gemini', '--version'])
     if success:
-        print(f"Gemini CLI ready: {version}")
+        print(f"Gemini CLI ready: {{version}}")
     else:
-        print(f"Gemini verification failed: {stderr}")
+        print(f"Gemini verification failed: {{stderr}}")
         raise Exception("Gemini CLI installation failed")
 
-    # === Coretext: Copy injected package into /testbed ===
-    if os.path.isdir('/tmp/coretext_package'):
-        print("Injecting Coretext package into /testbed...")
-        for item in os.listdir('/tmp/coretext_package'):
-            s = os.path.join('/tmp/coretext_package', item)
-            d = os.path.join('/testbed', item)
-            if os.path.isdir(s):
-                if os.path.exists(d):
-                    # Merge directories
-                    print(f"  Merging directory: {item}")
-                    for subitem in os.listdir(s):
-                        ss = os.path.join(s, subitem)
-                        dd = os.path.join(d, subitem)
-                        if os.path.isdir(ss):
-                            shutil.copytree(ss, dd, dirs_exist_ok=True)
-                        else:
-                            shutil.copy2(ss, dd)
-                else:
-                    print(f"  Copying directory: {item}")
-                    shutil.copytree(s, d)
-            else:
-                print(f"  Copying file: {item}")
-                shutil.copy2(s, d)
-        print("Coretext package injected successfully")
+    {inject_coretext_logic}
 
     # Patch defaultModelConfigs.js to register gemini-3.1-pro-preview.
     # Without this, gemini-3.1-pro-preview falls back to 'chat-base' config
@@ -256,33 +270,33 @@ try:
                 with open(cfg_path) as _f:
                     cfg_content = _f.read()
                 if "'gemini-3.1-pro-preview'" not in cfg_content:
-                    old_marker = "'gemini-3-flash-preview': {"
+                    old_marker = "'gemini-3-flash-preview': {{"
                     new_block = (
-                        "'gemini-3.1-pro-preview': {\\n"
-                        "            extends: 'chat-base-3',\\n"
-                        "            modelConfig: {\\n"
-                        "                model: 'gemini-3.1-pro-preview',\\n"
-                        "            },\\n"
-                        "        },\\n"
-                        "        'gemini-3.1-pro-preview-customtools': {\\n"
-                        "            extends: 'chat-base-3',\\n"
-                        "            modelConfig: {\\n"
-                        "                model: 'gemini-3.1-pro-preview-customtools',\\n"
-                        "            },\\n"
-                        "        },\\n"
+                        "'gemini-3.1-pro-preview': {{"
+                        "            extends: 'chat-base-3',"
+                        "            modelConfig: {{"
+                        "                model: 'gemini-3.1-pro-preview',"
+                        "            }},"
+                        "        }},"
+                        "        'gemini-3.1-pro-preview-customtools': {{"
+                        "            extends: 'chat-base-3',"
+                        "            modelConfig: {{"
+                        "                model: 'gemini-3.1-pro-preview-customtools',"
+                        "            }},"
+                        "        }},"
                         "        " + old_marker
                     )
                     cfg_content = cfg_content.replace(old_marker, new_block, 1)
                     with open(cfg_path, 'w') as _f:
                         _f.write(cfg_content)
-                    print(f"Patched Gemini CLI model configs: {cfg_path}")
+                    print(f"Patched Gemini CLI model configs: {{cfg_path}}")
                 else:
-                    print(f"Gemini CLI model configs already patched: {cfg_path}")
+                    print(f"Gemini CLI model configs already patched: {{cfg_path}}")
             except Exception as patch_err:
-                print(f"Warning: Failed to patch {cfg_path}: {patch_err}")
+                print(f"Warning: Failed to patch {{cfg_path}}: {{patch_err}}")
 
 except Exception as e:
-    print(f"Error setting up Gemini: {e}")
+    print(f"Error setting up Gemini: {{e}}")
     import traceback
     traceback.print_exc()
 """
