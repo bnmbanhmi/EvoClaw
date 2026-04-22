@@ -16,7 +16,7 @@
 - **Model**: `gemini-3.1-pro-preview`
 - **Prompt**: `coretext`
 - **Authentication**: Isolated CLI login via `GEMINI_CLI_HOME="/tmp/evoclaw-gemini-auth"`.
-- **Progress (2026-04-22)**: 0/11 completed. Initial failures with `gemini: not found` have been resolved. The experiment has been resumed.
+- **Progress (2026-04-22)**: 0/11 completed. The broken container causing the `gemini: not found` error has been removed. The trial has been restarted with a fresh environment and updated log parser.
 
 ## Changes & Fixes
 ### 1. Gemini Initialization Optimization
@@ -43,6 +43,11 @@
 - **Problem**: `gemini` command was not found because the initialization script crashed early. `pip install` threw a `FileNotFoundError` when `pip` was missing, which was caught by a global `try...except`, halting the rest of the script including the Node.js and Gemini CLI installation. Missing recovery prompts also caused crashes.
 - **Fix**: Reordered script to define `run_cmd` earlier and wrapped `pip` commands in an isolated `try...except` block. User manually created `coretext_recover.md` and `coretext_recover.md.tmpl`.
 
+### 5. Gemini Coretext Broken Container & Log Parser Fix
+- **Files**: `harness/e2e/log_parser/gemini.py`
+- **Problem**: The `gemini: not found` error persisted because the trial was resuming an old, broken container. In addition, the log parser failed with `Unknown framework: gemini-coretext`.
+- **Fix**: Registered `gemini-coretext` in `GeminiLogParser`. Cleaned up the broken container and resumed the trial from scratch.
+
 ## Operations Log
 - **2026-04-21 21:07**: Resumed trial `_002`. Detected previous evaluation errors and triggered re-evaluation of submissions using the new CPU limit.
 - **2026-04-22 09:42**: Detected potential wedge on `ripgrep` (>10h running sessions).
@@ -50,6 +55,7 @@
 - **2026-04-22 10:55**: Integrated **Coretext Engine**. Created dedicated `gemini-coretext` harness and `coretext` prompt version for opt-in context injection benchmarks.
 - **2026-04-22 19:00**: Launched `gemini_coretext_run_001` trial via `scripts/run_all.py`. Trial immediately failed (`gemini: not found` in container). Recovery logic also failed due to missing `coretext_recover.md`.
 - **2026-04-22 19:30**: Applied initialization script fixes and recovery prompts. Resumed `gemini_coretext_run_001` trial.
+- **2026-04-22 19:46**: Trial failed again because it resumed the old broken container. Evaluator crashed because log parser didn't recognize `gemini-coretext`. Fixed the parser, deleted the broken container, and restarted the trial.
 
 ## Useful Commands
 - **Monitor**: `uv run scripts/monitor.sh gemini_coretext_run_001` (--detail or --full)

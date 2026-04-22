@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @register_parser("gemini-cli")
+@register_parser("gemini-coretext")
 class GeminiLogParser(AgentLogParser):
     """Parser for Google Gemini CLI logs.
 
