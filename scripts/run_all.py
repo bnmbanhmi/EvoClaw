@@ -132,6 +132,7 @@ def build_cmd(
     reasoning_effort: str | None,
     api_router: bool,
     force: bool,
+    prompt_version: str | None = None,
 ) -> tuple[list[str], str]:
     """Build the run_e2e command for one repo. Returns (cmd, mode_label)."""
     repo_name = repo.name
@@ -159,6 +160,8 @@ def build_cmd(
         cmd.extend(["--reasoning-effort", reasoning_effort])
     if api_router:
         cmd.append("--api-router")
+    if prompt_version:
+        cmd.extend(["--prompt-version", prompt_version])
     if force:
         cmd.append("--force")
     return cmd, ("force" if force else "fresh")
@@ -196,6 +199,7 @@ def main():
     timeout = cfg.get("timeout", 18000)
     reasoning_effort = cfg.get("reasoning_effort", None)
     api_router = cfg.get("api_router", cfg.get("drop_params", False))
+    prompt_version = cfg.get("prompt_version", None)
     default_haiku_model = cfg.get("default_haiku_model", None)
     repo_filters = args.repos or cfg.get("repos", None)
 
@@ -233,6 +237,7 @@ def main():
     print(f"  Trial name:   {trial_name}")
     print(f"  Agent:        {agent}")
     print(f"  Model:        {model}")
+    print(f"  Prompt:       {prompt_version}")
     print(f"  Timeout:      {timeout}s")
     print(f"  Repos:        {len(repos)}")
     print(f"  Mode:         {mode_label}")
@@ -261,7 +266,7 @@ def main():
 
         cmd, mode = build_cmd(
             repo, agent, model, timeout, trial_name,
-            reasoning_effort, api_router, args.force,
+            reasoning_effort, api_router, args.force, prompt_version,
         )
         log_path = log_dir / f"{repo.name}.log"
         ts = time.strftime("%Y-%m-%d %H:%M:%S")
