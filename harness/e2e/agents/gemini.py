@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @register_framework("gemini-cli")
 class GeminiFramework(AgentFramework):
-    """Agent framework implementation for Google Gemini CLI.
+    """Agent framework implementation for Google Gemini CLI with Coretext.
 
     Gemini CLI is Google's coding agent that runs in the terminal.
     https://github.com/google-gemini/gemini-cli
@@ -68,16 +68,23 @@ class GeminiFramework(AgentFramework):
         Returns:
             List of -v arguments for docker run
         """
+        mounts = []
         cli_home = os.environ.get("GEMINI_CLI_HOME")
         if cli_home:
             gemini_config_dir = os.path.join(cli_home, ".gemini")
             # Only mount if the directory actually exists
             if os.path.isdir(gemini_config_dir):
-                return ["-v", f"{gemini_config_dir}:/home/fakeroot/.gemini:rw"]
+                mounts.extend(["-v", f"{gemini_config_dir}:/home/fakeroot/.gemini:rw"])
             else:
                 logger.warning(f"GEMINI_CLI_HOME is set but {gemini_config_dir} does not exist.")
         
-        return []
+        # Add custom coretext mounts to be copied during init
+        workspace_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+        coretext_root = os.path.join(os.path.dirname(workspace_root), "coretext--trasition-to-sdd", "coretext_package")
+        if os.path.isdir(coretext_root):
+            mounts.extend(["-v", f"{coretext_root}:/tmp/coretext_src:ro"])
+
+        return mounts
 
     def get_container_env_vars(self) -> List[str]:
         """Return Docker environment variable arguments.
@@ -131,12 +138,42 @@ try:
         except Exception as e:
             return False, '', str(e)
 
-    # Fix ownership for the mounted home config directory
-    if os.path.exists("/home/fakeroot/.gemini"):
+    # === Coretext custom configs ===
+    if os.path.exists("/tmp/coretext_src"):
+        print("Installing custom coretext configs and dependencies...")
+        
+        # Create necessary directories
+        os.makedirs("/home/fakeroot/.gemini", exist_ok=True)
+        os.makedirs("/testbed/.gemini", exist_ok=True)
+        
+        # Copy .coretext to /testbed (workspace level)
+        if os.path.exists("/tmp/coretext_src/.coretext"):
+            if os.path.exists("/testbed/.coretext"):
+                shutil.rmtree("/testbed/.coretext")
+            shutil.copytree("/tmp/coretext_src/.coretext", "/testbed/.coretext")
+            
+        # Copy settings.json to /testbed/.gemini/settings.json (workspace level)
+        coretext_settings_path = "/tmp/coretext_src/.gemini/settings.json"
+        dest_settings_path = "/testbed/.gemini/settings.json"
+        if os.path.exists(coretext_settings_path):
+            shutil.copy2(coretext_settings_path, dest_settings_path)
+            
+        # Fix ownership for BOTH the home config and the workspace files
         try:
-            subprocess.run(['chown', '-R', 'fakeroot:fakeroot', '/home/fakeroot/.gemini'], capture_output=True)
+            subprocess.run(['chown', '-R', 'fakeroot:fakeroot', '/home/fakeroot/.gemini', '/testbed/.coretext', '/testbed/.gemini'], capture_output=True)
         except Exception:
             pass
+
+        # Install dependencies if pyproject.toml or requirements.txt exists
+        try:
+            if os.path.exists("/tmp/coretext_src/pyproject.toml"):
+                print("Installing coretext package dependencies (pyproject.toml)...")
+                subprocess.run(['pip', 'install', '/tmp/coretext_src'], capture_output=True)
+            elif os.path.exists("/tmp/coretext_src/requirements.txt"):
+                print("Installing coretext package dependencies (requirements.txt)...")
+                subprocess.run(['pip', 'install', '-r', '/tmp/coretext_src/requirements.txt'], capture_output=True)
+        except Exception as e:
+            print(f"Warning: Failed to install coretext dependencies: {e}")
 
     # Check current Node.js version
     success, node_version, _ = run_cmd(['node', '--version'])
