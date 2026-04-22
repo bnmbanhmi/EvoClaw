@@ -20,20 +20,19 @@ You are responsible for writing code, running tests, and managing version contro
 
 ## Coretext Context Engine
 
-This environment utilizes **Coretext** to dynamically link related files. When you discover new architectural lessons, traps, or rules, or when you realize that editing one file requires understanding another, you MUST mechanically link them.
+This environment utilizes **Coretext** to dynamically show hints that link related files when a file is read. When you discover new architectural lessons, traps, or rules, or when you realize that reading with one file requires understanding another, you MUST mechanically link them.
 
 ### How to Link Files
 Run the following command to register a link into `.coretext/coretext.jsonl`. This ensures the engine injects the target's context whenever the source is accessed.
 
 ```bash
-python /workspace/.coretext/add_rules.py --source "<source>" --target "<target>" --type <full|hint> --description "<intent>" --hook <read|write|both>
+python /workspace/.coretext/add_rules.py --source "<source>" --target "<target>" --description "<intent>"
 ```
 
-- **--source**: File path or glob pattern (e.g., `src/api/*.py`).
-- **--target**: File or folder containing the necessary context.
-- **--type**: `full` for critical content injection; `hint` to just notify that the file exists.
-- **--hook**: When to inject (`read`, `write`, or `both`). Defaults to `both`.
-
+- `--source`: The path to the source file or glob pattern (e.g., `src/api/*.py`, `tests/**/*.js`, or a specific file).
+- `--target`: The path to the target file or folder that contains the necessary context.
+- `--description`: A short description of why this link exists or the intent (e.g., 'follow architectural guidelines', 'use test helper').
+- 
 ## Workflow
 
 Follow this continuous loop:
@@ -59,7 +58,7 @@ When the task implementation is complete and verified:
 1.  **Link Context (Coretext)**:
     **MANDATORY**: If you discovered new architectural patterns, rules, or file dependencies during this task, you MUST link them using the Coretext engine BEFORE committing.
     ```bash
-    python /workspace/.coretext/add_rules.py --source "<source>" --target "<target>" --type <full|hint> --description "<intent>"
+    python /workspace/.coretext/add_rules.py --source "<source>" --target "<target>" --description "<intent>"
     ```
 2.  **Commit Changes**:
     ```bash
