@@ -130,6 +130,8 @@ class AgentRunner:
         "unauthorized",
         "Please run /login",
         "Failed to authenticate",
+        "FatalAuthenticationError",
+        "Manual authorization is required",
     ]
 
     # Rate limit / usage limit patterns
@@ -192,7 +194,7 @@ class AgentRunner:
 
     # Agents that use OAuth and may hit external rate limits.
     # API-based agents (e.g. openhands) handle rate limits internally via their SDK.
-    _OAUTH_AGENTS = {"claude-code", "codex", "gemini-cli"}
+    _OAUTH_AGENTS = {"claude-code", "codex", "gemini-cli", "gemini-coretext"}
 
     def _detect_rate_limit(self, output: str) -> bool:
         """Check if agent output contains rate limit / usage limit indicators.
@@ -224,11 +226,11 @@ class AgentRunner:
         """Infer a possible Gemini model/backend compatibility issue from error patterns.
 
         We intentionally keep this narrow:
-        - only gemini-cli
+        - only gemini-cli and gemini-coretext
         - only known model aliases in _GEMINI_MODEL_HINTS
         - must include 500/Internal Server Error signature
         """
-        if self.agent_name != "gemini-cli":
+        if self.agent_name not in ["gemini-cli", "gemini-coretext"]:
             return False
 
         model_key = (self.model or "").strip().lower()

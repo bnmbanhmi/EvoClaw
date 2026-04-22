@@ -1500,7 +1500,7 @@ Output Structure:
     parser.add_argument(
         "--agent",
         default="claude-code",
-        choices=["claude-code", "codex", "gemini-cli", "openhands"],
+        choices=["claude-code", "codex", "gemini-cli", "gemini-coretext", "openhands"],
         help="Agent framework to use (default: claude-code)",
     )
     parser.add_argument(

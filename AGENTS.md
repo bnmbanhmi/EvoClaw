@@ -16,7 +16,7 @@
 - **Model**: `gemini-3.1-pro-preview`
 - **Prompt**: `coretext`
 - **Authentication**: Isolated CLI login via `GEMINI_CLI_HOME="/tmp/evoclaw-gemini-auth"`.
-- **Progress (2026-04-22)**: 0/11 completed. The broken container causing the `gemini: not found` error has been removed. The trial has been restarted with a fresh environment and updated log parser.
+- **Progress (2026-04-22)**: 0/13 completed. The broken container causing the `gemini: not found` error has been removed. The trial has been restarted with a fresh environment and updated log parser.
 
 ## Changes & Fixes
 ### 1. Gemini Initialization Optimization
@@ -48,6 +48,15 @@
 - **Problem**: The `gemini: not found` error persisted because the trial was resuming an old, broken container. In addition, the log parser failed with `Unknown framework: gemini-coretext`.
 - **Fix**: Registered `gemini-coretext` in `GeminiLogParser`. Cleaned up the broken container and resumed the trial from scratch.
 
+### 6. Gemini Coretext Authentication & Permission Fix
+- **Files**: `harness/e2e/agents/gemini.py`, `harness/e2e/agents/gemini_coretext.py`, `harness/e2e/agent_runner.py`, `harness/e2e/agents/base.py`
+- **Problem**: `FatalAuthenticationError` occurred because `fakeroot` (UID 1000) lacked write permissions to the mounted `.gemini` directory on some hosts. Also, `settings.json` was placed in `/workspace/.gemini` but the CLI only looks in `~/.gemini`.
+- **Fix**:
+    - Added `chown -R fakeroot:fakeroot /home/fakeroot/.gemini` to the init script for both frameworks.
+    - Relocated Coretext `settings.json` to `/home/fakeroot/.gemini/settings.json`.
+    - Added `gemini-coretext` to `_OAUTH_AGENTS` in `AgentRunner`.
+    - Explicitly registered `gemini_coretext` in `AgentFramework` factory.
+
 ## Operations Log
 - **2026-04-21 21:07**: Resumed trial `_002`. Detected previous evaluation errors and triggered re-evaluation of submissions using the new CPU limit.
 - **2026-04-22 09:42**: Detected potential wedge on `ripgrep` (>10h running sessions).
@@ -56,10 +65,12 @@
 - **2026-04-22 19:00**: Launched `gemini_coretext_run_001` trial via `scripts/run_all.py`. Trial immediately failed (`gemini: not found` in container). Recovery logic also failed due to missing `coretext_recover.md`.
 - **2026-04-22 19:30**: Applied initialization script fixes and recovery prompts. Resumed `gemini_coretext_run_001` trial.
 - **2026-04-22 19:46**: Trial failed again because it resumed the old broken container. Evaluator crashed because log parser didn't recognize `gemini-coretext`. Fixed the parser, deleted the broken container, and restarted the trial.
+- **2026-04-22 21:30**: Trial failed with `FatalAuthenticationError` due to permission issues and incorrect `settings.json` location. Applied fix (chown + relocation) and prepared for a fresh restart.
 
 ## Useful Commands
 - **Monitor**: `uv run scripts/monitor.sh gemini_coretext_run_001` (--detail or --full)
 - **Pause/Stop**: `pgrep -f "run_e2e.*gemini_coretext_run_001" | xargs kill`
 - **Resume**: `export GEMINI_CLI_HOME="/tmp/evoclaw-gemini-auth" && uv run python scripts/run_all.py --config trial_config.yaml`
-- **Diagnose Wedge (Session Heartbeat)**: `docker exec BurntSushi_ripgrep_14.1.1_15.0.0-gemini_coretext_run_001 ls -la /home/fakeroot/.gemini`
+- **Diagnose Auth**: `docker exec BurntSushi_ripgrep_14.1.1_15.0.0-gemini_coretext_run_001 ls -la /home/fakeroot/.gemini`
+- **Diagnose Wedge (Session Heartbeat)**: `docker exec BurntSushi_ripgrep_14.1.1_15.0.0-gemini_coretext_run_001 ls -la /home/fakeroot/.gemini/tmp`
 - **Kill Wedged Agent**: `docker exec BurntSushi_ripgrep_14.1.1_15.0.0-gemini_coretext_run_001 pkill -KILL -f 'gemini --model'`

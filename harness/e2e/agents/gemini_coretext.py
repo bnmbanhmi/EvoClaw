@@ -143,21 +143,23 @@ try:
         print("Installing custom coretext configs and dependencies...")
         
         # Create necessary directories
-        os.makedirs("/workspace/.gemini", exist_ok=True)
+        os.makedirs("/home/fakeroot/.gemini", exist_ok=True)
+        os.makedirs("/workspace", exist_ok=True)
         
-        # Copy .coretext
+        # Copy .coretext to /workspace
         if os.path.exists("/tmp/coretext_src/.coretext"):
             if os.path.exists("/workspace/.coretext"):
                 shutil.rmtree("/workspace/.coretext")
             shutil.copytree("/tmp/coretext_src/.coretext", "/workspace/.coretext")
             
-        # Copy settings.json
+        # Copy settings.json to /home/fakeroot/.gemini/settings.json
+        # This will merge with the mounted credentials
         if os.path.exists("/tmp/coretext_src/.gemini/settings.json"):
-            shutil.copy2("/tmp/coretext_src/.gemini/settings.json", "/workspace/.gemini/settings.json")
+            shutil.copy2("/tmp/coretext_src/.gemini/settings.json", "/home/fakeroot/.gemini/settings.json")
             
-        # Fix ownership
+        # Fix ownership for BOTH the home config and the workspace files
         try:
-            subprocess.run(['chown', '-R', 'fakeroot:fakeroot', '/workspace/.gemini', '/workspace/.coretext'], capture_output=True)
+            subprocess.run(['chown', '-R', 'fakeroot:fakeroot', '/home/fakeroot/.gemini', '/workspace/.coretext'], capture_output=True)
         except Exception:
             pass
 
