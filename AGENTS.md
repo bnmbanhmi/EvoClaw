@@ -10,13 +10,13 @@
     - Gemini CLI Auth Setup: `docs/gemini-cli-auth.md`
 
 ## Current Status
-- **Active Trial**: `gemini_coretext_run_001` (Running)
-- **Target Repository**: `ripgrep` (BurntSushi_ripgrep_14.1.1_15.0.0)
-- **Agent**: `gemini-coretext`
-- **Model**: `gemini-3.1-pro-preview`
+- **Active Trial**: `gemini_coretext_run_002` (Running)
+- **Target Repository**: `ripgrep`
+- **Agent**: `gemini-cli` (Unified with Coretext logic)
+- **Model**: `gemini-3-flash-preview`
 - **Prompt**: `coretext`
 - **Authentication**: Isolated CLI login via `GEMINI_CLI_HOME="/tmp/evoclaw-gemini-auth"`.
-- **Progress (2026-04-22)**: 0/13 completed. The broken container causing the `gemini: not found` error has been removed. The trial has been restarted with a fresh environment and updated log parser.
+- **Progress (2026-04-22)**: Fresh trial started after deep environment cleanup (wiped macOS arm64 binaries from bind-mounted tmp, cleared old state/history).
 
 ## Changes & Fixes
 ### 1. Gemini Initialization Optimization
@@ -68,6 +68,23 @@
 - **Fix**: 
     - Verified `gemini-cli` authentication works as a baseline.
     - Cleared host-side `tmp/bin` to allow container-native downloads.
+
+### 9. Harness Unification and Pro-Capacity Fix
+- **Files**: `harness/e2e/agents/gemini.py`, `trial_config.yaml`
+- **Problem**: Dedicated `gemini-coretext` harness exhibited initialization inconsistencies, while standard `gemini-cli` harness was stable. Additionally, `gemini-3.1-pro-preview` hit a persistent 429 `RESOURCE_EXHAUSTED` (capacity exhausted) state.
+- **Fix**:
+    - Synchronized `gemini.py` with `gemini_coretext.py` logic, effectively enabling Coretext features in the stable `gemini-cli` agent.
+    - Switched trial model to `gemini-3-flash-preview` to bypass backend capacity issues.
+    - Performed full system cleanup (containers, trial dirs, locks) before relaunching.
+
+### 10. Deep Environment Cleanup
+- **Problem**: `gemini-3-flash-preview` kept freezing on startup, and past trial chats were visible in new trials.
+- **Fix**:
+    - Discovered `GEMINI_CLI_HOME` bind-mount was persisting the `history/`, `state.json`, and macOS `arm64` binaries in `tmp/bin` across trial runs.
+    - Deleted all dangling `gemini` docker containers.
+    - Wiped all `e2e_trial` folders inside `EvoClaw-data`.
+    - Cleared `history`, `state.json`, and `tmp` inside `/tmp/evoclaw-gemini-auth/.gemini/` while preserving auth config.
+
 ## Operations Log
 - **2026-04-21 21:07**: Resumed trial `_002`. Detected previous evaluation errors and triggered re-evaluation of submissions using the new CPU limit.
 - **2026-04-22 09:42**: Detected potential wedge on `ripgrep` (>10h running sessions).
@@ -82,6 +99,8 @@
 - **2026-04-22 23:30**: Identified incorrect `settings.json` auth format. Restored correct format (`"security": {"auth": {"selectedType": "oauth-personal"}}`), cleaned up artifacts, and restarted a clean trial.
 - **2026-04-22 23:45**: Transitioned to `gemini-cli` to verify authentication baseline. Authentication confirmed working. Identified Mach-O/Linux architecture mismatch in `~/.gemini/tmp/bin`.
 - **2026-04-22 23:55**: Cleared incompatible binaries from `/tmp/evoclaw-gemini-auth/.gemini/tmp/bin`. Resumed `gemini-coretext` trial.
+- **2026-04-23 00:05**: `gemini-3.1-pro-preview` hit persistent 429 capacity errors. Unified `gemini-cli` and `gemini-coretext` harnesses. Switched to `gemini-3-flash-preview`. Relaunched trial `gemini_coretext_run_001`.
+- **2026-04-23 00:30**: Deep environment cleanup performed. Wiped `GEMINI_CLI_HOME` history/tmp mounts to fix architecture freeze and cross-trial contamination. Launched clean `gemini_coretext_run_002` trial across all repos.
 
 ## Useful Commands
 - **Monitor**: `uv run scripts/monitor.sh gemini_coretext_run_001` (--detail or --full)
