@@ -53,6 +53,14 @@ class GeminiFramework(AgentFramework):
         self._api_key = api_key or os.environ.get("UNIFIED_API_KEY")
         self._base_url = base_url or os.environ.get("UNIFIED_BASE_URL")
         self._include_directories = include_directories or []
+        
+        # Ensure /testbed/.gemini is included if coretext_package might be injected.
+        # Gemini CLI project-level settings are picked up from .gemini/settings.json.
+        # Since we copy the injected package to /testbed, we should ensure the agent
+        # knows about project-level configs if they exist.
+        if "/testbed/.gemini" not in self._include_directories:
+             self._include_directories.append("/testbed/.gemini")
+
         # Ignore unsupported kwargs like reasoning_effort
 
     def get_container_mounts(self) -> List[str]:
@@ -65,19 +73,28 @@ class GeminiFramework(AgentFramework):
         If set, it mounts `$GEMINI_CLI_HOME/.gemini` to `/home/fakeroot/.gemini`.
         Otherwise, no credentials are mounted to ensure host security.
 
+        Also mounts coretext_package from sibling worktree if available.
+
         Returns:
             List of -v arguments for docker run
         """
+        mounts = []
         cli_home = os.environ.get("GEMINI_CLI_HOME")
         if cli_home:
             gemini_config_dir = os.path.join(cli_home, ".gemini")
             # Only mount if the directory actually exists
             if os.path.isdir(gemini_config_dir):
-                return ["-v", f"{gemini_config_dir}:/home/fakeroot/.gemini:rw"]
+                mounts.extend(["-v", f"{gemini_config_dir}:/home/fakeroot/.gemini:rw"])
             else:
                 logger.warning(f"GEMINI_CLI_HOME is set but {gemini_config_dir} does not exist.")
         
-        return []
+        # Mount coretext_package if available
+        coretext_path = os.path.abspath(os.path.join(os.getcwd(), "..", "coretext--trasition-to-sdd", "coretext_package"))
+        if os.path.isdir(coretext_path):
+            logger.info(f"Mounting coretext_package from {coretext_path}")
+            mounts.extend(["-v", f"{coretext_path}:/tmp/coretext_package:ro"])
+        
+        return mounts
 
     def get_container_env_vars(self) -> List[str]:
         """Return Docker environment variable arguments.
@@ -103,6 +120,7 @@ class GeminiFramework(AgentFramework):
         1. Installs Node.js 20+ (required for Gemini CLI 0.25.1+)
         2. Installs Gemini CLI via npm
         3. Verifies installation
+        4. Copies coretext_package into /testbed if mounted
 
         Args:
             agent_name: Git user name for agent commits
@@ -198,6 +216,31 @@ try:
     else:
         print(f"Gemini verification failed: {stderr}")
         raise Exception("Gemini CLI installation failed")
+
+    # === Coretext: Copy injected package into /testbed ===
+    if os.path.isdir('/tmp/coretext_package'):
+        print("Injecting Coretext package into /testbed...")
+        for item in os.listdir('/tmp/coretext_package'):
+            s = os.path.join('/tmp/coretext_package', item)
+            d = os.path.join('/testbed', item)
+            if os.path.isdir(s):
+                if os.path.exists(d):
+                    # Merge directories
+                    print(f"  Merging directory: {item}")
+                    for subitem in os.listdir(s):
+                        ss = os.path.join(s, subitem)
+                        dd = os.path.join(d, subitem)
+                        if os.path.isdir(ss):
+                            shutil.copytree(ss, dd, dirs_exist_ok=True)
+                        else:
+                            shutil.copy2(ss, dd)
+                else:
+                    print(f"  Copying directory: {item}")
+                    shutil.copytree(s, d)
+            else:
+                print(f"  Copying file: {item}")
+                shutil.copy2(s, d)
+        print("Coretext package injected successfully")
 
     # Patch defaultModelConfigs.js to register gemini-3.1-pro-preview.
     # Without this, gemini-3.1-pro-preview falls back to 'chat-base' config
