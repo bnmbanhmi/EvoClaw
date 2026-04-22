@@ -54,6 +54,19 @@ TOOL_CATEGORY_MAP: Dict[str, Dict[str, str]] = {
         "glob": "search",
         "task_tracker": "plan",
     },
+    "gemini-coretext": {
+        "read_file": "read",
+        "replace": "edit",
+        "file_editor": "edit",
+        "write_file": "write",
+        "run_shell_command": "shell",
+        "terminal": "shell",
+        "search_file_content": "search",
+        "grep_search": "search",
+        "list_directory": "search",
+        "glob": "search",
+        "task_tracker": "plan",
+    },
 }
 
 UNIFIED_TOOL_CATEGORIES: List[str] = [
