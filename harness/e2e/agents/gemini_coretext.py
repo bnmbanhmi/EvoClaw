@@ -144,58 +144,23 @@ try:
         
         # Create necessary directories
         os.makedirs("/home/fakeroot/.gemini", exist_ok=True)
-        os.makedirs("/workspace", exist_ok=True)
+        os.makedirs("/testbed/.gemini", exist_ok=True)
         
-        # Copy .coretext to /workspace
+        # Copy .coretext to /testbed (workspace level)
         if os.path.exists("/tmp/coretext_src/.coretext"):
-            if os.path.exists("/workspace/.coretext"):
-                shutil.rmtree("/workspace/.coretext")
-            shutil.copytree("/tmp/coretext_src/.coretext", "/workspace/.coretext")
+            if os.path.exists("/testbed/.coretext"):
+                shutil.rmtree("/testbed/.coretext")
+            shutil.copytree("/tmp/coretext_src/.coretext", "/testbed/.coretext")
             
-        # Merge settings.json with the mounted credentials
+        # Copy settings.json to /testbed/.gemini/settings.json (workspace level)
         coretext_settings_path = "/tmp/coretext_src/.gemini/settings.json"
-        dest_settings_path = "/home/fakeroot/.gemini/settings.json"
+        dest_settings_path = "/testbed/.gemini/settings.json"
         if os.path.exists(coretext_settings_path):
-            import json
-            try:
-                base_settings = {}
-                if os.path.exists(dest_settings_path):
-                    try:
-                        with open(dest_settings_path, 'r') as f:
-                            base_settings = json.load(f)
-                    except Exception:
-                        pass
-                
-                with open(coretext_settings_path, 'r') as f:
-                    core_settings = json.load(f)
-                    
-                # Deep merge hooks specifically
-                if "hooks" in core_settings:
-                    if "hooks" not in base_settings:
-                        base_settings["hooks"] = {}
-                    for hook_type, hook_list in core_settings["hooks"].items():
-                        if hook_type not in base_settings["hooks"]:
-                            base_settings["hooks"][hook_type] = []
-                        base_settings["hooks"][hook_type].extend(hook_list)
-                
-                # Merge other dicts
-                for k, v in core_settings.items():
-                    if k == "hooks": continue
-                    if isinstance(v, dict) and k in base_settings and isinstance(base_settings[k], dict):
-                        base_settings[k].update(v)
-                    else:
-                        base_settings[k] = v
-                        
-                with open(dest_settings_path, 'w') as f:
-                    json.dump(base_settings, f, indent=2)
-            except Exception as merge_err:
-                print(f"Warning: Failed to merge settings.json: {merge_err}")
-                import shutil
-                shutil.copy2(coretext_settings_path, dest_settings_path)
+            shutil.copy2(coretext_settings_path, dest_settings_path)
             
         # Fix ownership for BOTH the home config and the workspace files
         try:
-            subprocess.run(['chown', '-R', 'fakeroot:fakeroot', '/home/fakeroot/.gemini', '/workspace/.coretext'], capture_output=True)
+            subprocess.run(['chown', '-R', 'fakeroot:fakeroot', '/home/fakeroot/.gemini', '/testbed/.coretext', '/testbed/.gemini'], capture_output=True)
         except Exception:
             pass
 

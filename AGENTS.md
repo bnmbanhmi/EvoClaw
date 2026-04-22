@@ -57,10 +57,10 @@
     - Added `gemini-coretext` to `_OAUTH_AGENTS` in `AgentRunner`.
     - Explicitly registered `gemini_coretext` in `AgentFramework` factory.
 
-### 7. Gemini Coretext Settings Merge Fix
-- **Files**: `harness/e2e/agents/gemini_coretext.py`, `harness/e2e/agents/gemini.py`
-- **Problem**: `shutil.copy2()` in the `gemini_coretext.py` init script overwrote the existing `settings.json` and caused bind-mount metadata permission errors during container initialization.
-- **Fix**: Replaced `shutil.copy2()` with a robust Python JSON deep-merge that safely injects Coretext hooks without destroying user settings. Additionally, applied the missing `chown -R fakeroot:fakeroot /home/fakeroot/.gemini` to `gemini.py`.
+### 7. Gemini Coretext Settings Level & Merge Fix
+- **Files**: `harness/e2e/agents/gemini_coretext.py`, `/tmp/evoclaw-gemini-auth/.gemini/settings.json`
+- **Problem**: The `gemini_coretext.py` init script was incorrectly merging project-level Coretext settings into the container's global `~/.gemini/settings.json`. Additionally, the previous `shutil.copy2()` had already permanently destroyed the user's host `settings.json` by overwriting it with the Coretext hooks, stripping the required auth configuration.
+- **Fix**: Changed the initialization script to copy `.coretext` and `.gemini/settings.json` to the workspace level (`/testbed/`) instead of the global level (`/home/fakeroot/`). Repaired the user's damaged `/tmp/evoclaw-gemini-auth/.gemini/settings.json` by restoring the correct nested structure (`{"security": {"auth": {"selectedType": "oauth-personal"}}}`).
 
 ## Operations Log
 - **2026-04-21 21:07**: Resumed trial `_002`. Detected previous evaluation errors and triggered re-evaluation of submissions using the new CPU limit.
@@ -72,6 +72,8 @@
 - **2026-04-22 19:46**: Trial failed again because it resumed the old broken container. Evaluator crashed because log parser didn't recognize `gemini-coretext`. Fixed the parser, deleted the broken container, and restarted the trial.
 - **2026-04-22 21:30**: Trial failed with `FatalAuthenticationError` due to permission issues and incorrect `settings.json` location. Applied fix (chown + relocation) and prepared for a fresh restart.
 - **2026-04-22 22:30**: Diagnosed `settings.json` bind-mount permissions overwrite issue in `gemini_coretext.py`. Implemented JSON merge fix and applied missing chown fix to `gemini.py`. Cleaned up old trial runs and started a new clean trial.
+- **2026-04-22 23:00**: Agent still failed to authenticate because the previous `shutil.copy2` had permanently destroyed the host's `settings.json`. Repaired the host's `settings.json` manually with `{"auth": "oauth"}`. Modified `gemini_coretext.py` to copy the Coretext `.gemini/settings.json` to the workspace level (`/testbed/.gemini/settings.json`) instead of merging it into the system level, correctly isolating project hooks. Restarted trial.
+- **2026-04-22 23:30**: Identified incorrect `settings.json` auth format. Restored correct format (`"security": {"auth": {"selectedType": "oauth-personal"}}`), cleaned up artifacts, and restarted a clean trial.
 
 ## Useful Commands
 - **Monitor**: `uv run scripts/monitor.sh gemini_coretext_run_001` (--detail or --full)
