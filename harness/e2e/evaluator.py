@@ -620,12 +620,12 @@ class PatchEvaluator:
                 # supports legacy key "pytest_timeout" for backwards compatibility
                 self.test_timeout = metadata.get("test_timeout") or metadata.get("pytest_timeout", 50)
                 # docker_cpus: number of CPUs for Docker container (default: 16)
-                self.docker_cpus = metadata.get("docker_cpus", 16)
+                self.docker_cpus = metadata.get("docker_cpus", 8)
         else:
             self.test_dir = "test/"
             self.test_workdir = "/testbed"
             self.test_timeout = 50
-            self.docker_cpus = 16
+            self.docker_cpus = 8
         # Ensure test_dir ends with / for consistent path handling
         if not self.test_dir.endswith("/"):
             self.test_dir = self.test_dir + "/"
