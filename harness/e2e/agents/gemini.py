@@ -92,8 +92,8 @@ class GeminiFramework(AgentFramework):
         
         # Mount coretext_package if enabled
         if self._coretext_enabled:
-            # Default to sibling worktree
-            default_path = os.path.abspath(os.path.join(os.getcwd(), "..", "coretext--trasition-to-sdd", "coretext_package"))
+            # Default to git directory coretext_package
+            default_path = os.path.expanduser("~/Git/coretext/coretext_package")
             coretext_path = os.environ.get("EVOCLAW_CORETEXT_PATH", default_path)
             
             if os.path.isdir(coretext_path):

@@ -8,6 +8,34 @@ To prevent the Docker container (which runs the agent with the sandbox-bypassing
 
 The `gemini-cli` agent adapter in EvoClaw uses the `GEMINI_CLI_HOME` environment variable. If this variable is set on your host machine, EvoClaw will mount the `.gemini` folder from that specific path into the Docker container at `/home/fakeroot/.gemini`. If `GEMINI_CLI_HOME` is not set, no credentials are mounted.
 
+```mermaid
+flowchart TD
+    subgraph Host Machine
+        direction TB
+        A[Original Method:<br>UNIFIED_API_KEY]
+        B[Secure Isolated Method:<br>GEMINI_CLI_HOME=/tmp/evoclaw...]
+        
+        HostCreds[(~/.gemini<br>Primary Host Creds)]
+        IsolatedCreds[(/tmp/evoclaw.../.gemini<br>Isolated OAuth Creds)]
+        
+        B -->|gemini login| IsolatedCreds
+    end
+
+    subgraph Docker Container
+        direction TB
+        C[Agent Configuration]
+        D[gemini-cli Process]
+        ContainerHome[(/home/fakeroot/.gemini)]
+    end
+
+    A -.->|Injected as Env Var| C
+    IsolatedCreds ===|Mounted via Docker Volume| ContainerHome
+    HostCreds x--x|Blocked for Security| ContainerHome
+    
+    C --> D
+    ContainerHome --> D
+```
+
 ## Setup Instructions
 
 Follow these steps to create an isolated authentication session for EvoClaw:
@@ -39,7 +67,7 @@ python harness/e2e/run_e2e.py \
     --repo navidrome_navidrome_v0.57.0_v0.58.0 \
     --milestone milestone_001 \
     --agent gemini-cli \
-    --model gemini-2.0-flash
+    --model gemini-3.0-flash
 ```
 
 ## Security Considerations
